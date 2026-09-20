@@ -1367,7 +1367,7 @@ BUILTIN_ERRORS = [
     # ADDITIONAL DLL CRASHES (from web research)
     # ============================================================
     ErrorEntry(
-        id="DLL_010", name="ntdll.dll Heap Corruption (0xc0000374)",
+        id="DLL_011", name="ntdll.dll Heap Corruption (0xc0000374)",
         category="Runtime DLL", severity="critical",
         description="Heap corruption in ntdll.dll causing crash. Very common in MSFS 2020/2024. Often triggered by add-ons or system memory issues.",
         causes=["Corrupted heap memory", "Incompatible add-on (CouATL64_MSFS.exe / GSX)", "Out of memory / pagefile too small", "Faulty RAM causing memory corruption", "Antivirus hooking into process memory", "DLL version mismatch"],

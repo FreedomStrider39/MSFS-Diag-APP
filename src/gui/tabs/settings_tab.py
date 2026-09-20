@@ -95,15 +95,25 @@ class SettingsTab(QWidget):
         self.community_display.setWordWrap(True)
         path_layout.addRow("Community:", self.community_display)
 
+        self.config_display = QLabel("Detecting...")
+        self.config_display.setWordWrap(True)
+        path_layout.addRow("UserCfg.opt:", self.config_display)
+
         btn_row = QHBoxLayout()
         detect_btn = QPushButton("Re-detect Paths")
         detect_btn.clicked.connect(self._redetect_paths)
         btn_row.addWidget(detect_btn)
 
-        browse_btn = QPushButton("Browse Manually")
-        browse_btn.setProperty("class", "secondary")
-        browse_btn.clicked.connect(self._browse_path)
-        btn_row.addWidget(browse_btn)
+        browse_msfs_btn = QPushButton("Browse MSFS Folder")
+        browse_msfs_btn.setProperty("class", "secondary")
+        browse_msfs_btn.clicked.connect(lambda: self._browse_path("msfs"))
+        btn_row.addWidget(browse_msfs_btn)
+
+        browse_community_btn = QPushButton("Browse Community Folder")
+        browse_community_btn.setProperty("class", "secondary")
+        browse_community_btn.clicked.connect(lambda: self._browse_path("community"))
+        btn_row.addWidget(browse_community_btn)
+
         btn_row.addStretch()
         path_layout.addRow("", btn_row)
 
@@ -195,38 +205,44 @@ class SettingsTab(QWidget):
     def _detect_paths(self):
         msfs = self.mw.config.find_msfs_path()
         community = self.mw.config.find_community_folder()
+        usercfg = self.mw.config.find_usercfg()
         self.path_display.setText(str(msfs) if msfs else "Not found")
         self.community_display.setText(str(community) if community else "Not found")
+        self.config_display.setText(str(usercfg) if usercfg else "Not found")
 
     def _redetect_paths(self):
         self.mw.config.find_msfs_path(clear_cache=True)
+        self._detect_paths()
         msfs = self.mw.config.find_msfs_path()
-        community = self.mw.config.find_community_folder()
-        self.path_display.setText(str(msfs) if msfs else "Not found")
-        self.community_display.setText(str(community) if community else "Not found")
         if msfs:
             self.mw.status_bar.showMessage(f"MSFS found at {msfs}", 5000)
         else:
             self.mw.status_bar.showMessage("MSFS not found. Try browsing manually.", 5000)
 
-    def _browse_path(self):
+    def _browse_path(self, path_type: str = "msfs"):
         folder = QFileDialog.getExistingDirectory(
-            self, "Select MSFS Installation Folder",
+            self, f"Select {path_type.title()} Folder",
             os.path.expanduser("~"),
             QFileDialog.ShowDirsOnly
         )
         if folder:
             from pathlib import Path
             p = Path(folder)
-            success = self.mw.config.set_custom_path(p)
+            if path_type == "community":
+                success = self.mw.config.set_custom_community_path(p)
+            else:
+                success = self.mw.config.set_custom_path(p)
             if success:
-                self.path_display.setText(str(p))
-                community = self.mw.config.find_community_folder()
-                self.community_display.setText(str(community) if community else "Not found")
+                self._detect_paths()
                 self.mw.status_bar.showMessage(f"Path set to {p}", 5000)
             else:
-                QMessageBox.warning(
-                    self, "Invalid Folder",
-                    f"Could not find UserCfg.opt in:\n{folder}\n\n"
-                    "Please select the folder that contains your MSFS config files."
-                )
+                if path_type == "msfs":
+                    QMessageBox.warning(
+                        self, "Invalid Folder",
+                        f"Could not find UserCfg.opt in:\n{folder}\n\n"
+                        "Please select the MSFS installation folder."
+                    )
+                else:
+                    self.mw.config.set_custom_community_path(p)
+                    self._detect_paths()
+                    self.mw.status_bar.showMessage(f"Community path set to {p}", 5000)

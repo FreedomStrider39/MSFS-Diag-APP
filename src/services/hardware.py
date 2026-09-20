@@ -94,7 +94,9 @@ class HardwareInfo:
                 c = wmi.WMI(namespace="root\\cimv2")
                 for item in c.Win32_VideoController():
                     gpu.name = item.Name or "Unknown"
-                    gpu.vram_mb = int(item.AdapterRAM or 0) // (1024 * 1024)
+                    adapter_ram = int(item.AdapterRAM or 0)
+                    if adapter_ram > 0 and adapter_ram < 2147483647:
+                        gpu.vram_mb = adapter_ram // (1024 * 1024)
                     gpu.driver_version = item.DriverVersion or "Unknown"
                     break
             else:
@@ -108,7 +110,9 @@ class HardwareInfo:
                     if isinstance(data, list):
                         data = data[0]
                     gpu.name = data.get("Name", "Unknown")
-                    gpu.vram_mb = int(data.get("AdapterRAM", 0)) // (1024 * 1024)
+                    adapter_ram = int(data.get("AdapterRAM", 0))
+                    if adapter_ram > 0 and adapter_ram < 2147483647:
+                        gpu.vram_mb = adapter_ram // (1024 * 1024)
                     gpu.driver_version = data.get("DriverVersion", "Unknown")
 
         except Exception:
@@ -116,6 +120,9 @@ class HardwareInfo:
 
         if gpu.vram_mb <= 0:
             gpu.vram_mb = self._get_vram_fallback()
+
+        if gpu.vram_mb <= 0:
+            gpu.vram_mb = self._get_vram_amd_fallback(gpu.name)
 
         info.gpu = gpu
 
@@ -132,32 +139,42 @@ class HardwareInfo:
         try:
             result = subprocess.run(
                 ["powershell", "-Command",
-                 "(Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Win32\\VideoControllers' -ErrorAction SilentlyContinue).AdapterRAM"],
+                 "(Get-CimInstance Win32_VideoController | Where-Object { $_.AdapterRAM -gt 0 }).AdapterRAM"],
                 capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0 and result.stdout.strip():
-                val = int(result.stdout.strip())
-                if val > 0:
+                val = int(result.stdout.strip().split("\n")[0].strip())
+                if val > 0 and val < 2147483647:
                     return val // (1024 * 1024)
         except Exception:
             pass
         return 0
 
+    def _get_vram_amd_fallback(self, gpu_name: str) -> int:
+        if "amd" in gpu_name.lower() or "radeon" in gpu_name.lower():
+            try:
+                result = subprocess.run(
+                    ["powershell", "-Command",
+                     "Get-CimInstance Win32_VideoController | Select-Object AdapterRAM | ConvertTo-Json"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    data = json.loads(result.stdout)
+                    if isinstance(data, list):
+                        for item in data:
+                            ram = int(item.get("AdapterRAM", 0))
+                            if ram > 0 and ram < 2147483647:
+                                return ram // (1024 * 1024)
+                    else:
+                        ram = int(data.get("AdapterRAM", 0))
+                        if ram > 0 and ram < 2147483647:
+                            return ram // (1024 * 1024)
+            except Exception:
+                pass
+        return 0
+
     def _fill_monitor(self, info: SystemInfo):
         monitor = MonitorInfo()
-        try:
-            if wmi:
-                c = wmi.WMI(namespace="root\\wmi")
-                for item in c.WmiMonitorBasicDisplayParams():
-                    if hasattr(item, 'MaxHorizontalImageSize') and item.MaxHorizontalImageSize:
-                        w = int(item.MaxHorizontalImageSize)
-                        h = int(item.MaxVerticalImageSize)
-                        if w > 0 and h > 0:
-                            monitor.width = w
-                            monitor.height = h
-                            break
-        except Exception:
-            pass
         try:
             import ctypes
             user32 = ctypes.windll.user32
@@ -165,6 +182,31 @@ class HardwareInfo:
             monitor.height = user32.GetSystemMetrics(1)
         except Exception:
             pass
+
+        if monitor.width <= 0 or monitor.height <= 0:
+            try:
+                import ctypes
+                user32 = ctypes.windll.user32
+                monitor.width = user32.GetSystemMetrics(0)
+                monitor.height = user32.GetSystemMetrics(1)
+            except Exception:
+                pass
+
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            monitor.refresh_hz = 60
+            try:
+                dev_mode = ctypes.wintypes.DEVMODEW()
+                dev_mode.dmSize = ctypes.sizeof(dev_mode)
+                if user32.EnumDisplaySettingsW(None, -1, dev_mode):
+                    if hasattr(dev_mode, 'dmDisplayFrequency') and dev_mode.dmDisplayFrequency > 0:
+                        monitor.refresh_hz = dev_mode.dmDisplayFrequency
+            except Exception:
+                pass
+        except Exception:
+            pass
+
         info.monitor = monitor
 
     def get_summary(self) -> str:

@@ -555,14 +555,55 @@ class ConfigTuner:
                     pass
         return applied
 
-    def _build_nvidia_cmd(self, setting: str, value: str) -> str:
-        nvidia_keys = {
-            "Power Management Mode": {"Normal": "0x104d4e4d", "Prefer maximum performance": "0x104d4e50"},
-            "Texture Filtering - Quality": {"Quality": "0x00000000", "High performance": "0x00000001", "Performance": "0x00000002", "High quality": "0x00000003"},
-            "Low Latency Mode": {"Off": "0x00000000", "On": "0x00000001", "Ultra": "0x00000002"},
-            "Vertical Sync": {"Off": "0x00000000", "On": "0x00000001", "Use the 3D application setting": "0x00000002"},
+    def _build_nvidia_cmd(self, setting: str, value: str) -> list:
+        nvidia_settings = {
+            "Power Management Mode": {
+                "Normal": "0x104d4e4d",
+                "Prefer maximum performance": "0x104d4e50",
+            },
+            "Texture Filtering - Quality": {
+                "Quality": "0x00000000",
+                "High performance": "0x00000001",
+                "Performance": "0x00000002",
+                "High quality": "0x00000003",
+            },
+            "Low Latency Mode": {
+                "Off": "0x00000000",
+                "On": "0x00000001",
+                "Ultra": "0x00000002",
+            },
+            "Vertical Sync": {
+                "Off": "0x00000000",
+                "On": "0x00000001",
+                "Use the 3D application setting": "0x00000002",
+            },
         }
-        return ""
+        if setting in nvidia_settings and value in nvidia_settings[setting]:
+            hex_val = nvidia_settings[setting][value]
+            return [
+                "nvidia-smi", "--admin-gpuclock=1",
+                "--app-control=0",
+            ]
+        return []
+
+    def apply_nvidia_settings_via_registry(self, changes: list[TuneChange]) -> list[str]:
+        applied = []
+        nvidia_reg_base = r"HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000"
+        for change in changes:
+            if change.setting == "Power Management Mode":
+                val = 0x104d4e50 if "maximum" in change.recommended.lower() else 0x104d4e4d
+                cmd = f'reg add "{nvidia_reg_base}" /v PerfLevelSrc /t REG_DWORD /d {val} /f'
+                self._run_reg(cmd, applied, change.setting)
+            elif change.setting == "Texture Filtering - Quality":
+                quality_map = {"Quality": 0, "High quality": 3, "Performance": 2, "High performance": 1}
+                val = quality_map.get(change.recommended, 0)
+                cmd = f'reg add "{nvidia_reg_base}" /v TextureFilterQuality /t REG_DWORD /d {val} /f'
+                self._run_reg(cmd, applied, change.setting)
+            elif change.setting == "Low Latency Mode":
+                val = {"Off": 0, "On": 1, "Ultra": 2}.get(change.recommended, 0)
+                cmd = f'reg add "{nvidia_reg_base}" /v LowLatencyMode /t REG_DWORD /d {val} /f'
+                self._run_reg(cmd, applied, change.setting)
+        return applied
 
     def apply_windows_gaming_settings(self, changes: list[TuneChange]) -> list[str]:
         applied = []
@@ -583,15 +624,27 @@ class ConfigTuner:
 
     def apply_windows_power_settings(self, changes: list[TuneChange]) -> list[str]:
         applied = []
+        power_plan_guids = {
+            "High performance": "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c",
+            "Ultimate Performance": "e9a42b02-d5df-448d-aa00-03f14749eb61",
+            "Balanced": "381b4222-f694-41df-b545-5f275e1e56cf",
+            "Power saver": "a1841308-3541-4fab-bc81-f71556f20b4a",
+        }
         for change in changes:
             if "Power Plan" in change.setting:
                 plan_name = change.recommended
-                cmd = f'powercfg /setactive {plan_name}'
-                try:
-                    subprocess.run(["powercfg", "/setactive", plan_name], capture_output=True, timeout=10)
-                    applied.append(change.setting)
-                except Exception:
-                    pass
+                guid = power_plan_guids.get(plan_name)
+                if not guid:
+                    for name, g in power_plan_guids.items():
+                        if name.lower() in plan_name.lower():
+                            guid = g
+                            break
+                if guid:
+                    try:
+                        subprocess.run(["powercfg", "/setactive", guid], capture_output=True, timeout=10)
+                        applied.append(change.setting)
+                    except Exception:
+                        pass
             elif "PCI Express" in change.setting:
                 cmd = 'powercfg /setacvalueindex SCHEME_CURRENT SUB_PCIEXPRESS ASPM 0'
                 try:
@@ -632,6 +685,13 @@ class ConfigTuner:
         return applied
 
     def _run_reg(self, cmd: str, applied: list, setting: str, admin: bool = False):
+        if admin:
+            try:
+                import ctypes
+                if not ctypes.windll.shell32.IsUserAnAdmin():
+                    cmd = f'powershell -Command "Start-Process cmd -ArgumentList \'/c {cmd}\' -Verb RunAs"'
+            except Exception:
+                pass
         try:
             result = subprocess.run(cmd, shell=True, capture_output=True, timeout=10)
             if result.returncode == 0:

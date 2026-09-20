@@ -31,6 +31,28 @@ class DashboardTab(QWidget):
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
+        admin_group = QGroupBox("System Status")
+        admin_layout = QHBoxLayout()
+
+        try:
+            import ctypes
+            is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+        except Exception:
+            is_admin = False
+
+        self.admin_label = QLabel()
+        if is_admin:
+            self.admin_label.setText("Running as Administrator")
+            self.admin_label.setStyleSheet("color: #27ae60; font-weight: bold; padding: 5px;")
+        else:
+            self.admin_label.setText("Running as Standard User (some features may need admin)")
+            self.admin_label.setStyleSheet("color: #f39c12; padding: 5px;")
+        self.admin_label.setWordWrap(True)
+        admin_layout.addWidget(self.admin_label)
+        admin_layout.addStretch()
+        admin_group.setLayout(admin_layout)
+        layout.addWidget(admin_group)
+
         hw_group = QGroupBox("System Hardware")
         hw_layout = QVBoxLayout()
 
@@ -80,10 +102,6 @@ class DashboardTab(QWidget):
 
         donate_row = QHBoxLayout()
 
-        import os
-        from PySide6.QtCore import QUrl
-        from PySide6.QtGui import QDesktopServices
-
         donate_btn = QPushButton("Donate via PayPal")
         donate_btn.setProperty("class", "warning")
         donate_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://paypal.me/your-paypal")))
@@ -91,7 +109,7 @@ class DashboardTab(QWidget):
 
         github_btn = QPushButton("Star on GitHub")
         github_btn.setProperty("class", "secondary")
-        github_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/your-repo")))
+        github_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/FreedomStrider39/MSFS-Diag-APP")))
         donate_row.addWidget(github_btn)
 
         donate_row.addStretch()

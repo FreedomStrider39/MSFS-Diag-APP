@@ -37,6 +37,7 @@ class ConfigParser:
     def __init__(self):
         self._config_path: Optional[Path] = None
         self._msfs_path: Optional[Path] = None
+        self._community_path: Optional[Path] = None
 
     def _get_search_paths(self) -> list[Path]:
         paths = []
@@ -45,27 +46,46 @@ class ConfigParser:
         home = os.path.expanduser("~")
 
         paths.append(Path(local) / "Packages" / "Microsoft.FlightSimulator_8wekyb3d8bbwe" / "LocalCache")
+        paths.append(Path(local) / "Packages" / "Microsoft.FlightSimulator2024_8wekyb3d8bbwe" / "LocalCache")
         paths.append(Path(appdata) / "Microsoft Flight Simulator")
+        paths.append(Path(appdata) / "Microsoft Flight Simulator 2024")
         paths.append(Path(local) / "Microsoft Flight Simulator")
+        paths.append(Path(local) / "Microsoft Flight Simulator 2024")
         paths.append(Path(home) / "AppData" / "Local" / "Microsoft Flight Simulator")
+        paths.append(Path(home) / "AppData" / "Local" / "Microsoft Flight Simulator 2024")
 
-        steam_paths = [
-            Path("C:/Program Files (x86)/Steam/steamapps/common/FlightSimulator"),
-            Path("D:/Steam/steamapps/common/FlightSimulator"),
-            Path("E:/Steam/steamapps/common/FlightSimulator"),
-            Path("C:/Steam/steamapps/common/FlightSimulator"),
-            Path(local) / "MicrosoftFlightSimulator" / "LocalCache",
-        ]
+        steam_common_paths = []
+        for drive in "CDEFGH":
+            steam_common_paths.append(Path(f"{drive}:/Program Files (x86)/Steam/steamapps/common"))
+            steam_common_paths.append(Path(f"{drive}:/Steam/steamapps/common"))
+            steam_common_paths.append(Path(f"{drive}:/Games/Steam/steamapps/common"))
+            steam_common_paths.append(Path(f"{drive}:/SteamLibrary/steamapps/common"))
 
-        for sp in steam_paths:
-            paths.append(sp)
-            paths.append(sp / "AppData" / "Local" / "Microsoft Flight Simulator")
+        for common in steam_common_paths:
+            for sim_dir in ["FlightSimulator", "MicrosoftFlightSimulator", "Microsoft Flight Simulator"]:
+                paths.append(common / sim_dir)
+
+        libraryfolders = Path("C:/Program Files (x86)/Steam/steamapps/libraryfolders.vdf")
+        if libraryfolders.exists():
+            try:
+                import re as _re
+                content = libraryfolders.read_text(encoding="utf-8", errors="ignore")
+                for match in _re.finditer(r'"path"\s+"([^"]+)"', content):
+                    lib_path = Path(match.group(1).replace("\\\\", "/"))
+                    steamapps = lib_path / "steamapps" / "common"
+                    if steamapps.exists():
+                        for sim_dir in ["FlightSimulator", "MicrosoftFlightSimulator", "Microsoft Flight Simulator"]:
+                            paths.append(steamapps / sim_dir)
+            except Exception:
+                pass
 
         ms_store_base = Path(local) / "Packages"
         if ms_store_base.exists():
             for item in ms_store_base.iterdir():
-                if item.is_dir() and "flight" in item.name.lower() and "simulator" in item.name.lower():
-                    paths.append(item / "LocalCache")
+                if item.is_dir():
+                    name_lower = item.name.lower()
+                    if ("flight" in name_lower and "simulator" in name_lower) or "flightsimulator" in name_lower:
+                        paths.append(item / "LocalCache")
 
         return paths
 
@@ -75,7 +95,10 @@ class ConfigParser:
             self._config_path = None
 
         if self._msfs_path and self._msfs_path.exists():
-            return self._msfs_path
+            usercfg = self._msfs_path / self.USERCFG_FILENAME
+            if usercfg.exists():
+                self._config_path = usercfg
+                return self._msfs_path
 
         for p in self._get_search_paths():
             if p.exists():
@@ -84,14 +107,6 @@ class ConfigParser:
                     self._msfs_path = p
                     self._config_path = usercfg
                     return p
-
-        for p in self._get_search_paths():
-            if p.exists():
-                self._msfs_path = p
-                usercfg = p / self.USERCFG_FILENAME
-                if usercfg.exists():
-                    self._config_path = usercfg
-                return p
 
         return None
 
@@ -104,6 +119,12 @@ class ConfigParser:
             return True
         return False
 
+    def set_custom_community_path(self, path: Path) -> bool:
+        if path.exists():
+            self._community_path = path
+            return True
+        return False
+
     def find_usercfg(self) -> Optional[Path]:
         if self._config_path and self._config_path.exists():
             return self._config_path
@@ -111,6 +132,8 @@ class ConfigParser:
         return self._config_path
 
     def find_community_folder(self) -> Optional[Path]:
+        if hasattr(self, '_community_path') and self._community_path and self._community_path.exists():
+            return self._community_path
         msfs = self.find_msfs_path()
         if msfs:
             community = msfs / "Community"

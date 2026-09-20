@@ -141,9 +141,13 @@ class AIService:
     def diagnose(self, context: str) -> str:
         local_result = self._run_local(context)
 
-        has_local_match = "No specific match found" not in local_result and "=== Error Analysis ===" in local_result
+        has_local_match = (
+            "=== Error Analysis ===" in local_result
+            or "Severity:" in local_result
+            or "Most likely cause:" in local_result
+        ) and "No specific match" not in local_result
 
-        if has_local_match and "No specific match" not in local_result:
+        if has_local_match:
             return "[Built-in Rule Engine]\n\n" + local_result
 
         web_context = self._search_web_for_error(context)

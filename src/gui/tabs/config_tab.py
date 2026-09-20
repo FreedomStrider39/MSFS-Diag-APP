@@ -117,7 +117,7 @@ class ConfigTab(QWidget):
         self.apply_ai_btn.clicked.connect(self._apply_ai_recommendations)
         ai_btn_row2.addWidget(self.apply_ai_btn)
 
-        self.apply_ai_btn.setShortcut(Qt.CTRL | Qt.Key_A)
+        self.apply_ai_btn.setShortcut(Qt.CTRL | Qt.SHIFT | Qt.Key_A)
 
         ai_btn_row2.addStretch()
         ai_layout.addLayout(ai_btn_row2)
@@ -240,7 +240,8 @@ class ConfigTab(QWidget):
         try:
             community = self.mw.config.find_community_folder()
             if community:
-                mods = [m.name for m in self.mw.mod_scanner.scan(str(community))[:15]]
+                scan_result = self.mw.mod_scanner.scan(community)
+                mods = [m.name for m in scan_result.mods[:15]]
         except Exception:
             pass
 

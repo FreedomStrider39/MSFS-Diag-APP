@@ -19,7 +19,9 @@ All-in-one desktop utility for **Microsoft Flight Simulator 2020 & 2024**. Auto-
 ### AI Crash Diagnostics
 - Parses MSFS crash logs (`Events.xml`, `.log` files, Windows Event Viewer)
 - Built-in AI engine with **302+ known MSFS errors** across 34 categories — works offline, no API key needed
-- Optional **Groq cloud AI** upgrade (free Llama 3 70B, 30-second signup, no credit card)
+- Optional **Groq cloud AI** (free Llama 3 70B, 30-second signup, no credit card)
+- Optional **Gemini cloud AI** (free Gemini 2.5 Flash, no credit card)
+- AI priority: Groq > Gemini > Built-in rules
 
 ### Mod Inspector
 - Scans your Community folder for installed mods
@@ -27,6 +29,8 @@ All-in-one desktop utility for **Microsoft Flight Simulator 2020 & 2024**. Auto-
 - Identifies potential mod conflicts and problematic add-ons
 
 ### Config Tuner
+- **AI-Powered Analysis** — analyzes your hardware, settings, and crash history to recommend optimal config
+- Groq or Gemini cloud AI gives personalized reasoning, or use the built-in rule engine (offline)
 - 8 optimization presets: 60 FPS Competitive, 60 FPS Balanced, 45 FPS Smooth, 30 FPS Quality, 30 FPS Ultra, VR 72 FPS, VR 45 FPS Quality, Auto-Detect
 - Applies MSFS graphics settings, NVIDIA Control Panel, Windows Power & Gaming settings
 - **Automatic backup** before every change — one-click revert
@@ -81,7 +85,7 @@ Download the latest release from [Releases](https://github.com/FreedomStrider39/
 | PySide6 | GUI framework |
 | psutil | System monitoring |
 | wmi | Windows hardware info |
-| requests | Cloud AI (optional) |
+| requests | Cloud AI (Groq/Gemini, optional) |
 
 ---
 

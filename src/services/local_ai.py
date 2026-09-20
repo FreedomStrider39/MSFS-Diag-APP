@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 
-from src.services.error_library import (
+from .error_library import (
     get_all_errors,
     search_errors,
     get_error_by_id,

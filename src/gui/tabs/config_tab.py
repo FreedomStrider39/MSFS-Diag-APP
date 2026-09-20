@@ -20,7 +20,8 @@ class TuneWorker(QThread):
             if not backup:
                 self.finished.emit(False, "Failed to create backup. Check MSFS installation path.")
                 return
-            success = self.tuner.apply_tier(self.tier)
+            changes = self.tuner.get_msfs_changes(self.tier)
+            success = self.tuner.apply_msfs_changes(changes)
             if success:
                 self.finished.emit(True, f"Settings applied! Backup saved to:\n{backup}")
             else:

@@ -15,6 +15,7 @@ from .tabs.dashboard_tab import DashboardTab
 from .tabs.config_tab import ConfigTab
 from .tabs.crash_tab import CrashTab
 from .tabs.mods_tab import ModsTab
+from .tabs.library_tab import LibraryTab
 from .tabs.settings_tab import SettingsTab
 
 
@@ -60,12 +61,14 @@ class MainWindow(QMainWindow):
         self.config_tab = ConfigTab(self)
         self.crash_tab = CrashTab(self)
         self.mods_tab = ModsTab(self)
+        self.library_tab = LibraryTab(self)
         self.settings_tab = SettingsTab(self)
 
         self.tabs.addTab(self.dashboard_tab, "Dashboard")
         self.tabs.addTab(self.config_tab, "Config Tuner")
         self.tabs.addTab(self.crash_tab, "Crash Diagnostics")
         self.tabs.addTab(self.mods_tab, "Mod Inspector")
+        self.tabs.addTab(self.library_tab, "Error Library")
         self.tabs.addTab(self.settings_tab, "Settings")
 
         layout.addWidget(self.tabs)

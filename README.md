@@ -9,54 +9,14 @@ All-in-one desktop utility for **Microsoft Flight Simulator 2020 & 2024**. Auto-
 
 ---
 
-## Features
+## Download
 
-### System Dashboard
-- Auto-detects your hardware (CPU, GPU, RAM, VRAM, display)
-- Finds your MSFS installation (Steam, Microsoft Store, or custom path)
-- Detects your graphics tier (Low / Medium / High / Ultra)
+### Option 1: Download .exe (Recommended)
+1. Go to [Releases](https://github.com/FreedomStrider39/MSFS-Diag-APP/releases)
+2. Download `MSFS-Diagnostics.exe` from the latest release
+3. Run it — no installation needed
 
-### AI Crash Diagnostics
-- Parses MSFS crash logs (`Events.xml`, `.log` files, Windows Event Viewer)
-- Built-in AI engine with **302+ known MSFS errors** across 34 categories — works offline, no API key needed
-- Optional **Groq cloud AI** (free Llama 3 70B, 30-second signup, no credit card)
-- Optional **Gemini cloud AI** (free Gemini 2.5 Flash, no credit card)
-- AI priority: Groq > Gemini > Built-in rules
-
-### Mod Inspector
-- Scans your Community folder for installed mods
-- Detects mod sources (flightsim.to, Contrail, manual installs)
-- Identifies potential mod conflicts and problematic add-ons
-
-### Config Tuner
-- **AI-Powered Analysis** — analyzes your hardware, settings, and crash history to recommend optimal config
-- Groq or Gemini cloud AI gives personalized reasoning, or use the built-in rule engine (offline)
-- 8 optimization presets: 60 FPS Competitive, 60 FPS Balanced, 45 FPS Smooth, 30 FPS Quality, 30 FPS Ultra, VR 72 FPS, VR 45 FPS Quality, Auto-Detect
-- Applies MSFS graphics settings, NVIDIA Control Panel, Windows Power & Gaming settings
-- **Automatic backup** before every change — one-click revert
-- Never auto-applies — all changes shown as preview first
-
-### Extensible Error Library
-- User-configurable: add, update, or remove custom error rules
-- JSON persistence — your custom errors survive updates
-- Searchable by keyword, error code, or category
-
----
-
-## Screenshots
-
-<!-- Add screenshots here -->
-<!-- ![Dashboard](screenshots/dashboard.png) -->
-<!-- ![Crash Diagnostics](screenshots/crash-diagnostics.png) -->
-<!-- ![Config Tuner](screenshots/config-tuner.png) -->
-<!-- ![Mod Inspector](screenshots/mod-inspector.png) -->
-
----
-
-## Quick Start
-
-### Option 1: Run from Source
-
+### Option 2: Run from Source
 ```bash
 git clone https://github.com/FreedomStrider39/MSFS-Diag-APP.git
 cd MSFS-Diag-APP
@@ -64,9 +24,69 @@ pip install -r requirements.txt
 python main.py
 ```
 
-### Option 2: Download .exe (Coming Soon)
+---
 
-Download the latest release from [Releases](https://github.com/FreedomStrider39/MSFS-Diag-APP/releases) — no Python installation required.
+## Features
+
+### System Dashboard
+- Auto-detects your hardware (CPU, GPU, RAM, VRAM, monitor, refresh rate)
+- Finds your MSFS installation (Steam, Microsoft Store, Xbox Game Pass, MSFS 2024)
+- Detects your graphics tier (Low / Medium / High / Ultra)
+- Shows admin rights status
+
+### AI Crash Diagnostics
+- Parses MSFS crash logs (`Events.xml`, `.log` files, Windows Event Viewer)
+- **302+ known MSFS errors** across 34 categories — works offline, no API key needed
+- **Web search fallback** — when error not in database, automatically searches flightsim.to forums, Reddit, and official support
+- Optional **Groq cloud AI** (free Llama 3 70B, 30-second signup)
+- Optional **Gemini cloud AI** (free Gemini 2.5 Flash, no credit card)
+- AI priority: Groq > Gemini > Built-in rules + web search
+
+### AI-Powered Config Tuning
+- Analyzes your hardware, current settings, and crash history
+- Returns personalized recommendations with reasoning
+- 8 optimization presets: 60 FPS Competitive → VR 45 FPS Quality
+- Applies MSFS graphics, NVIDIA Control Panel, Windows Power & Gaming settings
+- **Automatic backup** before every change — one-click revert
+- Never auto-applies — always shows preview first
+
+### Mod Inspector
+- Scans your Community folder for installed mods
+- Detects mod sources (flightsim.to, Contrail, manual installs)
+- Identifies potential mod conflicts and problematic add-ons
+
+### Error Library
+- Searchable database of 302+ MSFS errors
+- Search by error name, DLL, error code, or symptom
+- Filter by category and severity
+- View detailed causes and step-by-step fixes
+- Search online for any error with one click
+
+### Settings
+- Set Groq and Gemini API keys (both optional)
+- Manual path configuration for MSFS and Community folders
+- Re-detect paths automatically
+
+---
+
+## How It Works
+
+```
+Error reported (e.g. "nvlddmkm.dll crash")
+        |
+1. Check built-in database (302+ known errors)
+   -> Found match? Return fixes immediately
+        | (no match)
+2. Search web automatically (DuckDuckGo, no key needed)
+   -> Finds flightsim.to forums, Reddit, official support
+        |
+3. If Groq/Gemini available:
+   -> Send error + web results to cloud AI for analysis
+   -> AI synthesizes built-in knowledge + web solutions
+        |
+4. If no cloud AI:
+   -> Return built-in fixes + web search results side-by-side
+```
 
 ---
 
@@ -86,6 +106,7 @@ Download the latest release from [Releases](https://github.com/FreedomStrider39/
 | psutil | System monitoring |
 | wmi | Windows hardware info |
 | requests | Cloud AI (Groq/Gemini, optional) |
+| ddgs | Web search fallback (DuckDuckGo) |
 
 ---
 
@@ -96,7 +117,7 @@ pip install pyinstaller
 pyinstaller build.spec
 ```
 
-The standalone `.exe` will be in the `dist/` folder.
+The standalone `.exe` will be in the `dist/` folder. No Python installation required for end users.
 
 ---
 
@@ -104,32 +125,51 @@ The standalone `.exe` will be in the `dist/` folder.
 
 ```
 MSFS-Diag-APP/
-├── main.py                    # Entry point
-├── build.spec                 # PyInstaller config
-├── requirements.txt
-├── pyproject.toml
-├── data/                      # User data (error library, backups)
-│   └── reverts/               # Automatic config backups
-└── src/
-    ├── gui/
-    │   ├── main_window.py     # Main application window
-    │   ├── styles.py          # FlightSim.to-inspired dark theme
-    │   └── tabs/
-    │       ├── dashboard_tab.py
-    │       ├── config_tab.py
-    │       ├── crash_tab.py
-    │       ├── mods_tab.py
-    │       └── settings_tab.py
-    └── services/
-        ├── hardware.py        # System hardware detection
-        ├── config_parser.py   # MSFS UserCfg.opt reader/writer
-        ├── crash_reader.py    # Crash log parser
-        ├── mod_scanner.py     # Community folder scanner
-        ├── tuner.py           # Graphics config tuner
-        ├── local_ai.py        # Offline AI diagnostics engine
-        ├── error_library.py   # 302+ MSFS error database
-        └── ai_service.py      # Optional Groq cloud AI
+|-- main.py                    # Entry point
+|-- build.spec                 # PyInstaller config
+|-- requirements.txt
+|-- pyproject.toml
+|-- data/                      # User data (error library, backups)
+|   +-- reverts/               # Automatic config backups
++-- src/
+    +-- gui/
+    |   |-- main_window.py     # Main application window
+    |   |-- styles.py          # FlightSim.to-inspired dark theme
+    |   +-- tabs/
+    |       |-- dashboard_tab.py
+    |       |-- config_tab.py
+    |       |-- crash_tab.py
+    |       |-- mods_tab.py
+    |       |-- library_tab.py
+    |       +-- settings_tab.py
+    +-- services/
+        |-- hardware.py        # System hardware detection
+        |-- config_parser.py   # MSFS UserCfg.opt reader/writer
+        |-- crash_reader.py    # Crash log parser
+        |-- mod_scanner.py     # Community folder scanner
+        |-- tuner.py           # Graphics config tuner
+        |-- local_ai.py        # Offline AI diagnostics engine
+        |-- error_library.py   # 302+ MSFS error database
+        |-- ai_service.py      # Groq + Gemini cloud AI
+        +-- web_search.py      # DuckDuckGo search fallback
 ```
+
+---
+
+## AI Setup (Optional)
+
+The app works out of the box with the built-in rule engine. For better results, add a free API key:
+
+### Groq (Best Quality)
+1. Go to [console.groq.com](https://console.groq.com)
+2. Sign Up (free, no credit card, 30 seconds)
+3. API Keys -> Create API Key -> Copy
+4. In the app: Settings -> Paste key -> Save
+
+### Gemini (Fast)
+1. Go to [aistudio.google.com](https://aistudio.google.com)
+2. Get API key (free, no credit card)
+3. In the app: Settings -> Paste key -> Save
 
 ---
 
@@ -137,9 +177,10 @@ MSFS-Diag-APP/
 
 Contributions are welcome! To add new MSFS errors to the built-in database:
 
-1. Open the app → Settings → Error Library
-2. Add the error with category, severity, cause, and fixes
-3. Or edit `src/services/error_library.py` directly and submit a PR
+1. Open the app -> Error Library tab
+2. Note the error details (name, category, DLL, error code)
+3. Edit `src/services/error_library.py` and add a new `ErrorEntry`
+4. Submit a PR
 
 ---
 

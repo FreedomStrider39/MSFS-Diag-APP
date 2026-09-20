@@ -10,6 +10,7 @@ except ImportError:
     requests = None
 
 from .local_ai import LocalDiagnostics
+from .web_search import WebSearch
 
 
 @dataclass
@@ -95,6 +96,7 @@ class AIService:
         self.groq_key = ""
         self.gemini_key = ""
         self.local_engine = LocalDiagnostics()
+        self.web_search = WebSearch()
         self._settings_path = os.path.join(
             os.path.expanduser("~"), ".msfs_diagnostics", "ai_settings.json"
         )
@@ -137,32 +139,93 @@ class AIService:
         return "Local"
 
     def diagnose(self, context: str) -> str:
+        local_result = self._run_local(context)
+
+        has_local_match = "No specific match found" not in local_result and "=== Error Analysis ===" in local_result
+
+        if has_local_match and "No specific match" not in local_result:
+            return "[Built-in Rule Engine]\n\n" + local_result
+
+        web_context = self._search_web_for_error(context)
+
         if self.has_groq() and requests:
-            result = self._call_groq(context)
+            enhanced_context = context
+            if web_context:
+                enhanced_context += f"\n\n=== WEB SEARCH RESULTS ===\n{web_context}"
+            result = self._call_groq(enhanced_context)
             if result:
-                return "[Powered by Groq - Llama 3 70B]\n\n" + result
+                source = "Groq AI + Web Search" if web_context else "Groq AI"
+                return f"[Powered by {source} - Llama 3 70B]\n\n" + result
 
         if self.has_gemini() and requests:
-            result = self._call_gemini(context)
+            enhanced_context = context
+            if web_context:
+                enhanced_context += f"\n\n=== WEB SEARCH RESULTS ===\n{web_context}"
+            result = self._call_gemini(enhanced_context)
             if result:
-                return "[Powered by Gemini - 2.5 Flash]\n\n" + result
+                source = "Gemini AI + Web Search" if web_context else "Gemini AI"
+                return f"[Powered by {source} - 2.5 Flash]\n\n" + result
 
-        return "[Built-in Rule Engine]\n\n" + self._run_local(context)
+        if web_context:
+            return f"[Built-in Rules + Web Search]\n\n{local_result}\n\n=== ONLINE SOLUTIONS ===\n{web_context}"
+
+        return "[Built-in Rule Engine]\n\n" + local_result
 
     def recommend_tuning(self, system_info, current_settings, crash_events=None, mods=None) -> TuningReport:
         context = self._build_tuning_context(system_info, current_settings, crash_events, mods)
 
+        web_context = ""
+        if crash_events:
+            for crash in crash_events[:2]:
+                if crash.faulting_module or crash.exception_code:
+                    web_context += self._search_web_for_error(
+                        f"Faulting Module: {crash.faulting_module}\nException Code: {crash.exception_code}\n{crash.message}"
+                    ) + "\n"
+
         if self.has_groq() and requests:
-            result = self._call_groq_tuning(context)
+            enhanced = context
+            if web_context:
+                enhanced += f"\n\n=== WEB SEARCH RESULTS FOR CRASHES ===\n{web_context}"
+            result = self._call_groq_tuning(enhanced)
             if result:
+                if web_context:
+                    result.source = "Groq AI + Web Search (Llama 3 70B)"
                 return result
 
         if self.has_gemini() and requests:
-            result = self._call_gemini_tuning(context)
+            enhanced = context
+            if web_context:
+                enhanced += f"\n\n=== WEB SEARCH RESULTS FOR CRASHES ===\n{web_context}"
+            result = self._call_gemini_tuning(enhanced)
             if result:
+                if web_context:
+                    result.source = "Gemini AI + Web Search (2.5 Flash)"
                 return result
 
         return self._local_tuning_analysis(system_info, current_settings, crash_events)
+
+    def _search_web_for_error(self, context: str) -> str:
+        module = ""
+        code = ""
+        error_desc = ""
+
+        m = re.search(r"Faulting Module:\s*(.+)", context)
+        if m:
+            module = m.group(1).strip()
+
+        m = re.search(r"Exception Code:\s*(0x[0-9a-fA-F]+)", context)
+        if m:
+            code = m.group(1).strip()
+
+        m = re.search(r"(?:error|crash|fault)[:\s]*(.+?)(?:\n|$)", context, re.IGNORECASE)
+        if m:
+            error_desc = m.group(1).strip()[:100]
+
+        if not error_desc:
+            error_desc = context[:200]
+
+        results = self.web_search.search_msfs_error(error_desc, module, code)
+        return results.to_context()
 
     def _build_tuning_context(self, system_info, current_settings, crash_events=None, mods=None) -> str:
         lines = [

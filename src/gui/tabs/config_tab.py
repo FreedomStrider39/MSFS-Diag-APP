@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QGroupBox, QComboBox, QTableWidget, QTableWidgetItem,
-    QMessageBox, QHeaderView, QFrame
+    QMessageBox, QHeaderView, QTextEdit, QSplitter
 )
 from PySide6.QtCore import Qt, QThread, Signal
 
@@ -30,10 +30,33 @@ class TuneWorker(QThread):
             self.finished.emit(False, str(e))
 
 
+class AIAnalysisWorker(QThread):
+    finished = Signal(object)
+
+    def __init__(self, ai_service, system_info, current_settings, crash_events, mods):
+        super().__init__()
+        self.ai_service = ai_service
+        self.system_info = system_info
+        self.current_settings = current_settings
+        self.crash_events = crash_events
+        self.mods = mods
+
+    def run(self):
+        try:
+            report = self.ai_service.recommend_tuning(
+                self.system_info, self.current_settings,
+                self.crash_events, self.mods
+            )
+            self.finished.emit(report)
+        except Exception as e:
+            self.finished.emit(None)
+
+
 class ConfigTab(QWidget):
     def __init__(self, main_window):
         super().__init__()
         self.mw = main_window
+        self._current_report = None
         self._setup_ui()
 
     def _setup_ui(self):
@@ -55,8 +78,55 @@ class ConfigTab(QWidget):
         info_group.setLayout(info_layout)
         layout.addWidget(info_group)
 
-        rec_group = QGroupBox("Auto-Tuner Recommendations")
-        rec_layout = QVBoxLayout()
+        ai_group = QGroupBox("AI-Powered Tuning")
+        ai_layout = QVBoxLayout()
+
+        ai_desc = QLabel(
+            "Analyze your hardware, current settings, and crash history to get\n"
+            "personalized optimization recommendations."
+        )
+        ai_desc.setProperty("class", "subtitle")
+        ai_desc.setWordWrap(True)
+        ai_layout.addWidget(ai_desc)
+
+        ai_btn_row = QHBoxLayout()
+
+        self.ai_analyze_btn = QPushButton("Run AI Analysis")
+        self.ai_analyze_btn.setProperty("class", "success")
+        self.ai_analyze_btn.clicked.connect(self._run_ai_analysis)
+        ai_btn_row.addWidget(self.ai_analyze_btn)
+
+        self.ai_status = QLabel("")
+        self.ai_status.setProperty("class", "subtitle")
+        ai_btn_row.addWidget(self.ai_status)
+        ai_btn_row.addStretch()
+
+        ai_layout.addLayout(ai_btn_row)
+
+        self.ai_output = QTextEdit()
+        self.ai_output.setReadOnly(True)
+        self.ai_output.setPlaceholderText("Click 'Run AI Analysis' to get personalized recommendations...")
+        self.ai_output.setStyleSheet("font-family: 'Cascadia Code', monospace; min-height: 180px;")
+        ai_layout.addWidget(self.ai_output)
+
+        ai_btn_row2 = QHBoxLayout()
+
+        self.apply_ai_btn = QPushButton("Apply AI Recommendations")
+        self.apply_ai_btn.setProperty("class", "success")
+        self.apply_ai_btn.setEnabled(False)
+        self.apply_ai_btn.clicked.connect(self._apply_ai_recommendations)
+        ai_btn_row2.addWidget(self.apply_ai_btn)
+
+        self.apply_ai_btn.setShortcut(Qt.CTRL | Qt.Key_A)
+
+        ai_btn_row2.addStretch()
+        ai_layout.addLayout(ai_btn_row2)
+
+        ai_group.setLayout(ai_layout)
+        layout.addWidget(ai_group)
+
+        preset_group = QGroupBox("Quick Presets")
+        preset_layout = QVBoxLayout()
 
         tier_row = QHBoxLayout()
         tier_row.addWidget(QLabel("Performance Tier:"))
@@ -69,7 +139,7 @@ class ConfigTab(QWidget):
         tier_row.addWidget(self.tier_info)
         tier_row.addStretch()
 
-        rec_layout.addLayout(tier_row)
+        preset_layout.addLayout(tier_row)
 
         self.rec_table = QTableWidget()
         self.rec_table.setColumnCount(3)
@@ -78,11 +148,11 @@ class ConfigTab(QWidget):
         self.rec_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.rec_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.rec_table.verticalHeader().setVisible(False)
-        rec_layout.addWidget(self.rec_table)
+        preset_layout.addWidget(self.rec_table)
 
         btn_row = QHBoxLayout()
 
-        apply_btn = QPushButton("Apply Recommended Settings")
+        apply_btn = QPushButton("Apply Preset Settings")
         apply_btn.setProperty("class", "success")
         apply_btn.clicked.connect(self._apply_settings)
         btn_row.addWidget(apply_btn)
@@ -97,10 +167,10 @@ class ConfigTab(QWidget):
         restore_btn.clicked.connect(self._restore_backup)
         btn_row.addWidget(restore_btn)
 
-        rec_layout.addLayout(btn_row)
+        preset_layout.addLayout(btn_row)
 
-        rec_group.setLayout(rec_layout)
-        layout.addWidget(rec_group)
+        preset_group.setLayout(preset_layout)
+        layout.addWidget(preset_group)
 
         self._scan_settings()
 
@@ -150,6 +220,87 @@ class ConfigTab(QWidget):
         if tier is None:
             tier = self.mw.tuner.determine_tier()
         return tier
+
+    def _run_ai_analysis(self):
+        self.ai_analyze_btn.setEnabled(False)
+        self.ai_analyze_btn.setText("Analyzing...")
+        self.ai_status.setText("AI is analyzing your system...")
+        self.ai_output.setPlainText("Analyzing hardware, settings, and crash history...")
+
+        system_info = self.mw.hardware.get_all()
+        current_settings = self.mw.config.parse()
+
+        crash_events = []
+        try:
+            crash_events = self.mw.crash_reader.get_recent_crashes(10)
+        except Exception:
+            pass
+
+        mods = []
+        try:
+            community = self.mw.config.find_community_folder()
+            if community:
+                mods = [m.name for m in self.mw.mod_scanner.scan(str(community))[:15]]
+        except Exception:
+            pass
+
+        self._ai_worker = AIAnalysisWorker(
+            self.mw.ai_service, system_info, current_settings,
+            crash_events, mods
+        )
+        self._ai_worker.finished.connect(self._on_ai_analysis_done)
+        self._ai_worker.start()
+
+    def _on_ai_analysis_done(self, report):
+        self.ai_analyze_btn.setEnabled(True)
+        self.ai_analyze_btn.setText("Run AI Analysis")
+
+        if report is None:
+            self.ai_status.setText("AI analysis failed")
+            self.ai_output.setPlainText("Error: AI analysis failed. Check your Groq API key or try again.")
+            return
+
+        self._current_report = report
+
+        source_label = f"[{report.source}]"
+        self.ai_status.setText(f"Analysis complete {source_label}")
+
+        self.ai_output.setPlainText(report.to_text())
+
+        if report.recommendations:
+            self.apply_ai_btn.setEnabled(True)
+            high_count = len([r for r in report.recommendations if r.impact == "high"])
+            self.apply_ai_btn.setText(f"Apply {len(report.recommendations)} Recommendations ({high_count} high impact)")
+        else:
+            self.apply_ai_btn.setEnabled(False)
+            self.apply_ai_btn.setText("No Changes Needed")
+
+    def _apply_ai_recommendations(self):
+        if not self._current_report or not self._current_report.recommendations:
+            return
+
+        report = self._current_report
+        rec_text = "\n".join([
+            f"{r.setting}: {r.current_value} -> {r.recommended_value}"
+            for r in report.recommendations[:10]
+        ])
+
+        reply = QMessageBox.question(
+            self, "Apply AI Recommendations",
+            f"Apply {len(report.recommendations)} AI-recommended settings?\n\n"
+            f"{rec_text}\n\n"
+            "A timestamped backup will be created automatically.\n"
+            f"Engine: {report.source}",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        tier = self._current_report.overall_tier or self._get_selected_tier()
+        self.worker = TuneWorker(self.mw.tuner, tier)
+        self.worker.finished.connect(self._on_tune_done)
+        self.worker.start()
+        self.mw.status_bar.showMessage("Applying AI recommendations...")
 
     def _apply_settings(self):
         tier = self._get_selected_tier()

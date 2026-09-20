@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "msfs-diagnostics"
+version = "1.0.0"
+description = "All-in-one flight sim crash diagnostic and config tuner"
+requires-python = ">=3.10"
+dependencies = [
+    "PySide6>=6.6.0",
+    "psutil>=5.9.0",
+    "wmi>=1.5.1",
+    "requests>=2.31.0",
+]
+
+[project.scripts]
+msfs-diagnostics = "src.main:main"
+
+[tool.pyinstaller]
+console = false
+onefile = true
+name = "MSFS Diagnostics"
+icon = "assets/icon.ico"

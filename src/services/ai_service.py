@@ -62,6 +62,9 @@ class AIService:
     GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
     GROQ_MODEL = "llama3-70b-8192"
 
+    GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+    GEMINI_MODEL = "gemini-2.5-flash"
+
     SYSTEM_PROMPT = (
         "You are an expert MSFS 2020/2024 flight simulator technical support agent.\n"
         "Analyze the provided crash log, error codes, faulting modules, and system info.\n"
@@ -90,6 +93,7 @@ class AIService:
         self.provider = "builtin"
         self.api_key = ""
         self.groq_key = ""
+        self.gemini_key = ""
         self.local_engine = LocalDiagnostics()
         self._settings_path = os.path.join(
             os.path.expanduser("~"), ".msfs_diagnostics", "ai_settings.json"
@@ -102,34 +106,62 @@ class AIService:
                 with open(self._settings_path, "r") as f:
                     data = json.load(f)
                     self.groq_key = data.get("groq_key", "")
+                    self.gemini_key = data.get("gemini_key", "")
         except Exception:
             pass
 
     def save_settings(self):
         os.makedirs(os.path.dirname(self._settings_path), exist_ok=True)
         with open(self._settings_path, "w") as f:
-            json.dump({"groq_key": self.groq_key}, f)
+            json.dump({"groq_key": self.groq_key, "gemini_key": self.gemini_key}, f)
 
     def set_groq_key(self, key: str):
         self.groq_key = key
         self.save_settings()
 
+    def set_gemini_key(self, key: str):
+        self.gemini_key = key
+        self.save_settings()
+
     def has_groq(self) -> bool:
         return bool(self.groq_key and len(self.groq_key) > 10)
+
+    def has_gemini(self) -> bool:
+        return bool(self.gemini_key and len(self.gemini_key) > 10)
+
+    def _get_active_provider(self) -> str:
+        if self.has_groq():
+            return "Groq"
+        elif self.has_gemini():
+            return "Gemini"
+        return "Local"
 
     def diagnose(self, context: str) -> str:
         if self.has_groq() and requests:
             result = self._call_groq(context)
             if result:
                 return "[Powered by Groq - Llama 3 70B]\n\n" + result
+
+        if self.has_gemini() and requests:
+            result = self._call_gemini(context)
+            if result:
+                return "[Powered by Gemini - 2.5 Flash]\n\n" + result
+
         return "[Built-in Rule Engine]\n\n" + self._run_local(context)
 
     def recommend_tuning(self, system_info, current_settings, crash_events=None, mods=None) -> TuningReport:
         context = self._build_tuning_context(system_info, current_settings, crash_events, mods)
+
         if self.has_groq() and requests:
             result = self._call_groq_tuning(context)
             if result:
                 return result
+
+        if self.has_gemini() and requests:
+            result = self._call_gemini_tuning(context)
+            if result:
+                return result
+
         return self._local_tuning_analysis(system_info, current_settings, crash_events)
 
     def _build_tuning_context(self, system_info, current_settings, crash_events=None, mods=None) -> str:
@@ -221,6 +253,96 @@ class AIService:
 
     def _parse_groq_tuning_response(self, content: str) -> TuningReport:
         report = TuningReport(source="Groq AI (Llama 3 70B)")
+        report.summary = content
+
+        tier_match = re.search(r"tier[:\s]+(low|medium|high|ultra)", content, re.IGNORECASE)
+        if tier_match:
+            report.overall_tier = tier_match.group(1).lower()
+
+        fps_match = re.search(r"(\d+)\s*fps", content, re.IGNORECASE)
+        if fps_match:
+            report.target_fps = int(fps_match.group(1))
+
+        setting_pattern = re.compile(
+            r"(?:setting|parameter)[:\s]*(.+?)[:\s]*(?:from|current)[:\s]*(.+?)[,;]\s*(?:to|recommend|set)[:\s]*(.+?)[,;.\n]",
+            re.IGNORECASE
+        )
+        for match in setting_pattern.finditer(content):
+            rec = TuningRecommendation(
+                setting=match.group(1).strip(),
+                current_value=match.group(2).strip(),
+                recommended_value=match.group(3).strip(),
+                reason="AI recommended",
+                impact="medium"
+            )
+            report.recommendations.append(rec)
+
+        if not report.recommendations:
+            report.recommendations.append(TuningRecommendation(
+                setting="Full Analysis",
+                current_value="(see summary)",
+                recommended_value="(see summary)",
+                reason=content,
+                impact="high"
+            ))
+
+        return report
+
+    def _call_gemini(self, context: str) -> Optional[str]:
+        try:
+            url = self.GEMINI_URL.format(model=self.GEMINI_MODEL)
+            headers = {
+                "x-goog-api-key": self.gemini_key,
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "contents": [{"parts": [{"text": f"{self.SYSTEM_PROMPT}\n\n{context}"}]}],
+                "generationConfig": {
+                    "temperature": 0.3,
+                    "maxOutputTokens": 1024,
+                },
+            }
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        return parts[0].get("text", "")
+            return None
+        except Exception:
+            return None
+
+    def _call_gemini_tuning(self, context: str) -> Optional[TuningReport]:
+        try:
+            url = self.GEMINI_URL.format(model=self.GEMINI_MODEL)
+            headers = {
+                "x-goog-api-key": self.gemini_key,
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "contents": [{"parts": [{"text": f"{self.TUNING_PROMPT}\n\n{context}"}]}],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "maxOutputTokens": 2048,
+                },
+            }
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                candidates = data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts:
+                        content = parts[0].get("text", "")
+                        return self._parse_gemini_tuning_response(content)
+            return None
+        except Exception:
+            return None
+
+    def _parse_gemini_tuning_response(self, content: str) -> TuningReport:
+        report = TuningReport(source="Gemini AI (2.5 Flash)")
         report.summary = content
 
         tier_match = re.search(r"tier[:\s]+(low|medium|high|ultra)", content, re.IGNORECASE)

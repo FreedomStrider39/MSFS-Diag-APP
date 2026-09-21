@@ -173,14 +173,11 @@ The app works out of the box with the built-in rule engine. For better results, 
 
 ---
 
-## Contributing
+## Contributing to the database
 
-Contributions are welcome! To add new MSFS errors to the built-in database:
+Contributions are welcome! To add new MSFS errors to the built-in database, please go to **Issues**: [GitHub Issues](https://github.com/FreedomStrider39/MSFS-Diag-APP/issues) 
 
-1. Open the app -> Error Library tab
-2. Note the error details (name, category, DLL, error code)
-3. Edit `src/services/error_library.py` and add a new `ErrorEntry`
-4. Submit a PR
+Simply create a new post with information regarding the issue and it will be added after verification.
 
 ---
 

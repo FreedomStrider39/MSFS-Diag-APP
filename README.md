@@ -196,4 +196,4 @@ This tool is not affiliated with Microsoft, Asobo Studio, or Microsoft Flight Si
 
 If this tool helps you, consider buying me a coffee!
 
-[![PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/donate/?hosted_button_id=EtienneVerdet)
+[![PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/donate/?hosted_button_id=paypal.me/EtienneVerdet)

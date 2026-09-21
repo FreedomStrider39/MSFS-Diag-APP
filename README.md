@@ -186,8 +186,7 @@ Contributions are welcome! To add new MSFS errors to the built-in database:
 
 ## Disclaimer
 
-This tool is not affiliated with Microsoft, Asobo Studio, or Microsoft Flight Simulator. Use at your own risk. Always back up your settings before making changes.
-
+This tool is not affiliated with Microsoft, Asobo Studio, or Microsoft Flight Simulator. Use at your own risk. 
 ---
 
 ## Support
@@ -197,4 +196,4 @@ This tool is not affiliated with Microsoft, Asobo Studio, or Microsoft Flight Si
 
 If this tool helps you, consider buying me a coffee!
 
-[![PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/donate/?hosted_button_id=YOUR_PAYPAL_ID)
+[![PayPal](https://img.shields.io/badge/Donate-PayPal-blue.svg)](https://www.paypal.com/donate/?hosted_button_id=EtienneVerdet)
